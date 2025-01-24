@@ -47,14 +47,14 @@ try:
                 bot.send_message(chat_id=chat_id, text=message)
 
             # Humidity alert
-            if humidity > 70:
+            if humidity > 80:
                 message = f"Alert! The current humidity is {humidity}%, too high for optimal plant growth!"
                 bot.send_message(chat_id=chat_id, text=message)
 
             # Read LDR value
             LDR_value = readadc(0)  # Read ADC channel 0 (LDR)
             print(f"LDR = {LDR_value}")
-            GPIO.output(24, 1 if LDR_value < 400 else 0)
+            GPIO.output(24, 1 if LDR_value < 500 else 0)
 
             # Display on LCD
             LCD.lcd_display_string(f"Temp: {temperature:.1f}°C", 1)
