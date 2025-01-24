@@ -1,5 +1,6 @@
 import Adafruit_DHT
 import telegram
+import requests
 import spidev
 import I2C_LCD_driver
 import RPi.GPIO as GPIO
@@ -10,8 +11,8 @@ DHT_SENSOR = Adafruit_DHT.DHT11
 DHT_PIN = 21  # GPIO pin where the sensor is connected
 
 # Telegram Bot
-bot = telegram.Bot(token="7094057858:AAGU0CMWAcTnuMBJoUmBlg8HxUc8c1Mx3jw")
-chat_id = "6925171641"
+TOKEN="7094057858:AAGU0CMWAcTnuMBJoUmBlg8HxUc8c1Mx3jw"
+chat_id = "-1002405515611"
 
 # SPI and GPIO setup
 spi = spidev.SpiDev()
@@ -44,12 +45,14 @@ try:
             # Temperature alert
             if temperature < 18 or temperature > 28:
                 message = f"Alert! The current temperature is {temperature}°C, outside of set threshold!"
-                bot.send_message(chat_id=chat_id, text=message)
+                url=f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text={message}"
+                print(requests.get(url).json())
 
             # Humidity alert
             if humidity > 80:
                 message = f"Alert! The current humidity is {humidity}%, too high for optimal plant growth!"
-                bot.send_message(chat_id=chat_id, text=message)
+                url=f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text={message}"
+                print(requests.get(url).json())
 
             # Read LDR value
             LDR_value = readadc(0)  # Read ADC channel 0 (LDR)
