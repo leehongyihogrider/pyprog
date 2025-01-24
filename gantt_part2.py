@@ -1,17 +1,17 @@
 import Adafruit_DHT
-import telegram
 import requests
 import spidev
 import I2C_LCD_driver
 import RPi.GPIO as GPIO
-from time import sleep
+from time import sleep, time
+from datetime import datetime, timedelta
 
 # Sensor type: DHT11 or DHT22
 DHT_SENSOR = Adafruit_DHT.DHT11
 DHT_PIN = 21  # GPIO pin where the sensor is connected
 
 # Telegram Bot
-TOKEN="7094057858:AAGU0CMWAcTnuMBJoUmBlg8HxUc8c1Mx3jw"
+TOKEN = "7094057858:AAGU0CMWAcTnuMBJoUmBlg8HxUc8c1Mx3jw"
 chat_id = "-1002405515611"
 
 # SPI and GPIO setup
@@ -25,6 +25,16 @@ GPIO.setup(24, GPIO.OUT)
 
 # LCD Initialization
 LCD = I2C_LCD_driver.lcd()
+
+# Track the last message sent time for temperature and humidity
+last_temp_alert_time = None
+last_humidity_alert_time = None
+
+# Define a function to check if 24 hours have passed
+def can_send_alert(last_alert_time):
+    if last_alert_time is None:
+        return True
+    return datetime.now() - last_alert_time > timedelta(days=1)
 
 
 def readadc(adcnum):
@@ -43,16 +53,20 @@ try:
 
         if humidity is not None and temperature is not None:
             # Temperature alert
-            if temperature < 18 or temperature > 28:
+            if (temperature < 18 or temperature > 28) and can_send_alert(last_temp_alert_time):
                 message = f"Alert! The current temperature is {temperature}°C, outside of set threshold!"
-                url=f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text={message}"
-                print(requests.get(url).json())
+                url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text={message}"
+                response = requests.get(url).json()
+                print(response)
+                last_temp_alert_time = datetime.now()  # Update the last alert time
 
             # Humidity alert
-            if humidity > 80:
+            if humidity > 80 and can_send_alert(last_humidity_alert_time):
                 message = f"Alert! The current humidity is {humidity}%, too high for optimal plant growth!"
-                url=f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text={message}"
-                print(requests.get(url).json())
+                url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text={message}"
+                response = requests.get(url).json()
+                print(response)
+                last_humidity_alert_time = datetime.now()  # Update the last alert time
 
             # Read LDR value
             LDR_value = readadc(0)  # Read ADC channel 0 (LDR)
