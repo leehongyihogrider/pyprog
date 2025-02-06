@@ -3,8 +3,10 @@ import requests
 import spidev
 import I2C_LCD_driver
 import RPi.GPIO as GPIO
-from time import sleep, time
+import threading
+from time import sleep
 from datetime import datetime, timedelta
+import keyboard  # Keyboard module for detecting key presses
 
 # Sensor type: DHT11 or DHT22
 DHT_SENSOR = Adafruit_DHT.DHT11
@@ -30,57 +32,104 @@ LCD = I2C_LCD_driver.lcd()
 last_temp_alert_time = None
 last_humidity_alert_time = None
 
-# Define a function to check if 24 hours have passed
+# **System Control Variables**
+system_enabled = True   # Controls the entire system
+temp_humi_enabled = True  # Controls temperature and humidity readings
+ldr_enabled = True      # Controls LDR monitoring
+
+# Function to check if 24 hours have passed for alerts
 def can_send_alert(last_alert_time):
     if last_alert_time is None:
         return True
     return datetime.now() - last_alert_time > timedelta(days=1)
 
-
+# Read from the MCP3008 (SPI ADC)
 def readadc(adcnum):
-    # Read SPI data from the MCP3008, 8 channels in total
     if adcnum > 7 or adcnum < 0:
         return -1
     r = spi.xfer2([1, (8 + adcnum) << 4, 0])
     data = ((r[1] & 3) << 8) + r[2]
     return data
 
+# Function to toggle system and individual components
+def toggle_controls():
+    global system_enabled, temp_humi_enabled, ldr_enabled
+
+    while True:
+        event = keyboard.read_event()  # Wait for keypress
+
+        if event.event_type == keyboard.KEY_DOWN:
+            if event.name == "t":
+                system_enabled = not system_enabled
+                status = "ENABLED" if system_enabled else "DISABLED"
+                print(f"\n[INFO] Entire system {status} manually by the user.")
+
+            elif event.name == "h":
+                temp_humi_enabled = not temp_humi_enabled
+                status = "ENABLED" if temp_humi_enabled else "DISABLED"
+                print(f"\n[INFO] Temperature & Humidity Monitoring {status}.")
+
+            elif event.name == "l":
+                ldr_enabled = not ldr_enabled
+                status = "ENABLED" if ldr_enabled else "DISABLED"
+                print(f"\n[INFO] LDR Monitoring {status}.")
+
+            # Update LCD
+            LCD.lcd_clear()
+            if not system_enabled:
+                LCD.lcd_display_string("System DISABLED", 1)
+                LCD.lcd_display_string("Press 't' to enable", 2)
+            else:
+                LCD.lcd_display_string(f"Temp: {'ON' if temp_humi_enabled else 'OFF'}", 1)
+                LCD.lcd_display_string(f"LDR: {'ON' if ldr_enabled else 'OFF'}", 2)
+
+            sleep(1)  # Prevent rapid toggling
+
+# Start the keyboard listener in a separate thread
+threading.Thread(target=toggle_controls, daemon=True).start()
 
 try:
     while True:
-        # Read humidity and temperature
-        humidity, temperature = Adafruit_DHT.read(DHT_SENSOR, DHT_PIN)
+        # **Check if system is disabled**
+        if not system_enabled:
+            LCD.lcd_display_string("System DISABLED", 1)
+            LCD.lcd_display_string("Press 't' to enable", 2)
+            print("\n[INFO] User has disabled the plant care system.")
+            sleep(2)
+            continue  # Skip sensor readings
 
-        if humidity is not None and temperature is not None:
-            # Temperature alert
-            if (temperature < 18 or temperature > 28) and can_send_alert(last_temp_alert_time):
-                message = f"Alert! The current temperature is {temperature}°C, outside of set threshold!"
-                url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text={message}"
-                response = requests.get(url).json()
-                print(response)
-                last_temp_alert_time = datetime.now()  # Update the last alert time
+        # **Temperature & Humidity Readings**
+        if temp_humi_enabled:
+            humidity, temperature = Adafruit_DHT.read(DHT_SENSOR, DHT_PIN)
 
-            # Humidity alert
-            if humidity > 80 and can_send_alert(last_humidity_alert_time):
-                message = f"Alert! The current humidity is {humidity}%, too high for optimal plant growth!"
-                url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text={message}"
-                response = requests.get(url).json()
-                print(response)
-                last_humidity_alert_time = datetime.now()  # Update the last alert time
+            if humidity is not None and temperature is not None:
+                # Temperature alert
+                if (temperature < 18 or temperature > 28) and can_send_alert(last_temp_alert_time):
+                    message = f"Alert! The current temperature is {temperature}°C, outside of set threshold!"
+                    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text={message}"
+                    requests.get(url)
+                    last_temp_alert_time = datetime.now()
 
-            # Read LDR value
+                # Humidity alert
+                if humidity > 80 and can_send_alert(last_humidity_alert_time):
+                    message = f"Alert! The current humidity is {humidity}%, too high for optimal plant growth!"
+                    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text={message}"
+                    requests.get(url)
+                    last_humidity_alert_time = datetime.now()
+            else:
+                print("Failed to retrieve data from the sensor. Check wiring!")
+
+        # **LDR Sensor Monitoring**
+        if ldr_enabled:
             LDR_value = readadc(0)  # Read ADC channel 0 (LDR)
             print(f"LDR = {LDR_value}")
             GPIO.output(24, 1 if LDR_value < 500 else 0)
 
-            # Display on LCD
-            LCD.lcd_display_string(f"Temp: {temperature:.1f}°C", 1)
-            LCD.lcd_display_string(f"Humidity: {humidity:.1f}%", 2)
+        # **LCD Display Updates**
+        LCD.lcd_display_string(f"Temp: {'ON' if temp_humi_enabled else 'OFF'}", 1)
+        LCD.lcd_display_string(f"LDR: {'ON' if ldr_enabled else 'OFF'}", 2)
 
-        else:
-            print("Failed to retrieve data from the sensor. Check wiring!")
-
-        sleep(2)  # Add delay for stability
+        sleep(2)  # Delay for stability
 
 except KeyboardInterrupt:
     print("\nProgram stopped by user.")
