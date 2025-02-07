@@ -6,7 +6,6 @@ import RPi.GPIO as GPIO
 import threading
 from time import sleep
 from datetime import datetime, timedelta
-import keyboard  # Keyboard module for detecting key presses
 
 # Sensor type: DHT11 or DHT22
 DHT_SENSOR = Adafruit_DHT.DHT11
@@ -57,70 +56,68 @@ def readadc(adcnum):
     data = ((r[1] & 3) << 8) + r[2]
     return data
 
-# Function to toggle system and individual components
+# Function to toggle system and individual components using input()
 def toggle_controls():
     global system_enabled, temp_humi_enabled, ldr_enabled
 
     while True:
-        event = keyboard.read_event()  # Wait for keypress
+        print("\n[INFO] Press 't' to toggle system, 'h' for temp/humi, 'l' for LDR, 'q' to quit:")
+        key = input("Enter option: ").strip().lower()  # Take user input
 
-        if event.event_type == keyboard.KEY_DOWN:
-            if event.name == "t":
-                system_enabled = not system_enabled
-                status = "ENABLED" if system_enabled else "DISABLED"
-                print(f"\n[INFO] Entire system {status} manually by the user.")
+        if key == "t":
+            system_enabled = not system_enabled
+            status = "ENABLED" if system_enabled else "DISABLED"
+            print(f"\n[INFO] Entire system {status} manually by the user.")
 
-            elif event.name == "h":
-                temp_humi_enabled = not temp_humi_enabled
-                status = "ENABLED" if temp_humi_enabled else "DISABLED"
-                print(f"\n[INFO] Temperature & Humidity Monitoring {status}.")
+        elif key == "h":
+            temp_humi_enabled = not temp_humi_enabled
+            status = "ENABLED" if temp_humi_enabled else "DISABLED"
+            print(f"\n[INFO] Temperature & Humidity Monitoring {status}.")
 
-            elif event.name == "l":
-                ldr_enabled = not ldr_enabled
-                status = "ENABLED" if ldr_enabled else "DISABLED"
-                print(f"\n[INFO] LDR Monitoring {status}.")
+        elif key == "l":
+            ldr_enabled = not ldr_enabled
+            status = "ENABLED" if ldr_enabled else "DISABLED"
+            print(f"\n[INFO] LDR Monitoring {status}.")
 
-            # Update LCD
-            LCD.lcd_clear()
-            if not system_enabled:
-                LCD.lcd_display_string("System DISABLED", 1)
-                LCD.lcd_display_string("Press 't' to enable", 2)
-            else:
-                LCD.lcd_display_string(f"Temp: {'ON' if temp_humi_enabled else 'OFF'}", 1)
-                LCD.lcd_display_string(f"LDR: {'ON' if ldr_enabled else 'OFF'}", 2)
+        elif key == "q":
+            print("\n[INFO] Exiting control mode.")
+            break  # Exit the loop when 'q' is pressed
 
-            sleep(1)  # Prevent rapid toggling
+        # Update LCD
+        LCD.lcd_clear()
+        if not system_enabled:
+            LCD.lcd_display_string("System DISABLED", 1)
+            LCD.lcd_display_string("Press 't' to enable", 2)
+        else:
+            LCD.lcd_display_string(f"Temp: {'ON' if temp_humi_enabled else 'OFF'}", 1)
+            LCD.lcd_display_string(f"LDR: {'ON' if ldr_enabled else 'OFF'}", 2)
+
+        sleep(1)  # Prevent rapid toggling
+
 
 # Start the keyboard listener in a separate thread
 threading.Thread(target=toggle_controls, daemon=True).start()
 
-# **Function to Upload Data to ThingSpeak**
 def upload_to_thingspeak(temp=None, humi=None):
     global last_thingspeak_upload_time
 
     # Ensure at least 15 seconds have passed before sending data again
     if last_thingspeak_upload_time is None or (datetime.now() - last_thingspeak_upload_time).seconds >= 15:
+        url = "https://api.thingspeak.com/update"
         payload = {
             "api_key": "ATNCBN0ZUFSYGREX"
         }
 
         if temp is not None:
             payload["field1"] = temp
-            response = requests.get(THINGSPEAK_UPDATE_URL, params=payload)
-            if response.status_code == 200:
-                print(f"[INFO] Temperature {temp}°C uploaded to ThingSpeak")
-            else:
-                print(f"[ERROR] Failed to upload temperature. Status: {response.status_code}")
-
         if humi is not None:
             payload["field2"] = humi
-            response = requests.get(THINGSPEAK_UPDATE_URL, params=payload)
-            if response.status_code == 200:
-                print(f"[INFO] Humidity {humi}% uploaded to ThingSpeak")
-            else:
-                print(f"[ERROR] Failed to upload humidity. Status: {response.status_code}")
 
-        last_thingspeak_upload_time = datetime.now()
+        if "field1" in payload or "field2" in payload:  # Ensure data is present before sending request
+            response = requests.get(url, params=payload)
+            print(f"[INFO] Data uploaded to ThingSpeak: {response.status_code}")
+            last_thingspeak_upload_time = datetime.now()
+
 
 try:
     while True:
@@ -137,9 +134,8 @@ try:
             humidity, temperature = Adafruit_DHT.read(DHT_SENSOR, DHT_PIN)
 
             if humidity is not None and temperature is not None:
-                # **Send to ThingSpeak separately**
-                upload_to_thingspeak(temp=temperature)
-                upload_to_thingspeak(humi=humidity)
+                upload_to_thingspeak(temp=temperature, humi=humidity)  # Upload both temp & humi in one request
+
 
                 # Temperature alert
                 if (temperature < 18 or temperature > 28) and can_send_alert(last_temp_alert_time):
