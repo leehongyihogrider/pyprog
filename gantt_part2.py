@@ -6,13 +6,13 @@ import RPi.GPIO as GPIO
 import threading
 from time import sleep
 from datetime import datetime, timedelta
+import queue
 
 # Sensor type: DHT11 or DHT22
 DHT_SENSOR = Adafruit_DHT.DHT11
 DHT_PIN = 21  # GPIO pin where the sensor is connected
 
 # **ThingSpeak Configuration**
-
 THINGSPEAK_CHANNEL_ID = "2746200"
 THINGSPEAK_UPDATE_URL = "https://api.thingspeak.com/update"
 
@@ -37,10 +37,13 @@ system_enabled = True   # Controls the entire system
 temp_humi_enabled = True  # Controls temperature and humidity readings
 ldr_enabled = True      # Controls LDR monitoring
 
-# **Last Alert Time Trackers**
+# **Last Alert Time Trackers (Declared Globally)**
 last_temp_alert_time = None
 last_humidity_alert_time = None
 last_thingspeak_upload_time = None  # Prevent excessive updates
+
+# Create a queue for user input
+input_queue = queue.Queue()
 
 # Function to check if 24 hours have passed for alerts
 def can_send_alert(last_alert_time):
@@ -56,13 +59,12 @@ def readadc(adcnum):
     data = ((r[1] & 3) << 8) + r[2]
     return data
 
-# Function to toggle system and individual components using input()
 def toggle_controls():
     global system_enabled, temp_humi_enabled, ldr_enabled
 
     while True:
         print("\n[INFO] Press 't' to toggle system, 'h' for temp/humi, 'l' for LDR, 'q' to quit:")
-        key = input("Enter option: ").strip().lower()  # Take user input
+        key = input_queue.get().strip().lower()  # Get user input from queue
 
         if key == "t":
             system_enabled = not system_enabled
@@ -94,9 +96,18 @@ def toggle_controls():
 
         sleep(1)  # Prevent rapid toggling
 
-
-# Start the keyboard listener in a separate thread
+# Start the toggle_controls function in a separate thread
 threading.Thread(target=toggle_controls, daemon=True).start()
+
+# **Function to continuously read user input and add it to the queue**
+def read_user_input():
+    while True:
+        user_input = input().strip().lower()
+        input_queue.put(user_input)
+        sleep(0.5)  # Add a short delay to reduce CPU usage
+
+# Start the user input reader in a separate thread
+threading.Thread(target=read_user_input, daemon=True).start()
 
 def upload_to_thingspeak(temp=None, humi=None):
     global last_thingspeak_upload_time
@@ -134,28 +145,29 @@ try:
             humidity, temperature = Adafruit_DHT.read(DHT_SENSOR, DHT_PIN)
 
             if humidity is not None and temperature is not None:
-                upload_to_thingspeak(temp=temperature, humi=humidity)  # Upload both temp & humi in one request
+                print(f"[DEBUG] Temp: {temperature}°C, Humidity: {humidity}%")
+                upload_to_thingspeak(temp=temperature, humi=humidity)  
 
-
-                # Temperature alert
+                # **Temperature Alert**
                 if (temperature < 18 or temperature > 28) and can_send_alert(last_temp_alert_time):
+                    last_temp_alert_time = datetime.now()  # ✅ Works now
                     message = f"Alert! The current temperature is {temperature}°C, outside of set threshold!"
                     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text={message}"
                     requests.get(url)
-                    last_temp_alert_time = datetime.now()
 
-                # Humidity alert
+                # **Humidity Alert**
                 if humidity > 80 and can_send_alert(last_humidity_alert_time):
+                    last_humidity_alert_time = datetime.now()  # ✅ Works now
                     message = f"Alert! The current humidity is {humidity}%, too high for optimal plant growth!"
                     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={chat_id}&text={message}"
                     requests.get(url)
-                    last_humidity_alert_time = datetime.now()
+
             else:
                 print("Failed to retrieve data from the sensor. Check wiring!")
 
         # **LDR Sensor Monitoring**
         if ldr_enabled:
-            LDR_value = readadc(0)  # Read ADC channel 0 (LDR)
+            LDR_value = readadc(0)  
             print(f"LDR = {LDR_value}")
             GPIO.output(24, 1 if LDR_value < 500 else 0)
 
@@ -163,7 +175,7 @@ try:
         LCD.lcd_display_string(f"Temp: {'ON' if temp_humi_enabled else 'OFF'}", 1)
         LCD.lcd_display_string(f"LDR: {'ON' if ldr_enabled else 'OFF'}", 2)
 
-        sleep(2)  # Delay for stability
+        sleep(2)  
 
 except KeyboardInterrupt:
     print("\nProgram stopped by user.")
@@ -172,7 +184,7 @@ except Exception as e:
     print(f"An error occurred: {e}")
 
 finally:
-    GPIO.output(24, 0)  # Ensure LED is off
+    GPIO.output(24, 0)  
     GPIO.cleanup()
     spi.close()
     LCD.lcd_clear()
