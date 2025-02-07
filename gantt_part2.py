@@ -63,38 +63,41 @@ def toggle_controls():
     global system_enabled, temp_humi_enabled, ldr_enabled
 
     while True:
-        print("\n[INFO] Press 't' to toggle system, 'h' for temp/humi, 'l' for LDR, 'q' to quit:")
-        key = input_queue.get().strip().lower()  # Get user input from queue
+        try:
+            key = input_queue.get_nowait().strip().lower()  # Get input without blocking
 
-        if key == "t":
-            system_enabled = not system_enabled
-            status = "ENABLED" if system_enabled else "DISABLED"
-            print(f"\n[INFO] Entire system {status} manually by the user.")
+            if key == "t":
+                system_enabled = not system_enabled
+                status = "ENABLED" if system_enabled else "DISABLED"
+                print(f"\n[INFO] Entire system {status} manually by the user.")
 
-        elif key == "h":
-            temp_humi_enabled = not temp_humi_enabled
-            status = "ENABLED" if temp_humi_enabled else "DISABLED"
-            print(f"\n[INFO] Temperature & Humidity Monitoring {status}.")
+            elif key == "h":
+                temp_humi_enabled = not temp_humi_enabled
+                status = "ENABLED" if temp_humi_enabled else "DISABLED"
+                print(f"\n[INFO] Temperature & Humidity Monitoring {status}.")
 
-        elif key == "l":
-            ldr_enabled = not ldr_enabled
-            status = "ENABLED" if ldr_enabled else "DISABLED"
-            print(f"\n[INFO] LDR Monitoring {status}.")
+            elif key == "l":
+                ldr_enabled = not ldr_enabled
+                status = "ENABLED" if ldr_enabled else "DISABLED"
+                print(f"\n[INFO] LDR Monitoring {status}.")
 
-        elif key == "q":
-            print("\n[INFO] Exiting control mode.")
-            break  # Exit the loop when 'q' is pressed
+            elif key == "q":
+                print("\n[INFO] Exiting control mode.")
+                break  # Exit the loop when 'q' is pressed
 
-        # Update LCD
-        LCD.lcd_clear()
-        if not system_enabled:
-            LCD.lcd_display_string("System DISABLED", 1)
-            LCD.lcd_display_string("Press 't' to enable", 2)
-        else:
-            LCD.lcd_display_string(f"Temp: {'ON' if temp_humi_enabled else 'OFF'}", 1)
-            LCD.lcd_display_string(f"LDR: {'ON' if ldr_enabled else 'OFF'}", 2)
+            # Update LCD Display
+            LCD.lcd_clear()
+            if not system_enabled:
+                LCD.lcd_display_string("System DISABLED", 1)
+                LCD.lcd_display_string("Press 't' to enable", 2)
+            else:
+                LCD.lcd_display_string(f"Temp: {'ON' if temp_humi_enabled else 'OFF'}", 1)
+                LCD.lcd_display_string(f"LDR: {'ON' if ldr_enabled else 'OFF'}", 2)
 
-        sleep(1)  # Prevent rapid toggling
+        except queue.Empty:
+            pass  # If queue is empty, do nothing
+
+        sleep(0.1)  # Short delay to prevent CPU overuse
 
 # Start the toggle_controls function in a separate thread
 threading.Thread(target=toggle_controls, daemon=True).start()
@@ -103,8 +106,7 @@ threading.Thread(target=toggle_controls, daemon=True).start()
 def read_user_input():
     while True:
         user_input = input().strip().lower()
-        input_queue.put(user_input)
-        sleep(0.5)  # Add a short delay to reduce CPU usage
+        input_queue.put(user_input)  # Add user input to queue
 
 # Start the user input reader in a separate thread
 threading.Thread(target=read_user_input, daemon=True).start()
