@@ -12,11 +12,16 @@ import keyboard  # Keyboard module for detecting key presses
 DHT_SENSOR = Adafruit_DHT.DHT11
 DHT_PIN = 21  # GPIO pin where the sensor is connected
 
-# Telegram Bot
+# **ThingSpeak Configuration**
+THINGSPEAK_API_KEY = "ATNCBN0ZUFSYGREX"
+THINGSPEAK_CHANNEL_ID = "2746200"
+THINGSPEAK_UPDATE_URL = "https://api.thingspeak.com/update"
+
+# **Telegram Bot Configuration**
 TOKEN = "7094057858:AAGU0CMWAcTnuMBJoUmBlg8HxUc8c1Mx3jw"
 chat_id = "-1002405515611"
 
-# SPI and GPIO setup
+# **SPI and GPIO Setup**
 spi = spidev.SpiDev()
 spi.open(0, 0)  # Open SPI port 0, device 0
 spi.max_speed_hz = 1350000
@@ -25,17 +30,18 @@ GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 GPIO.setup(24, GPIO.OUT)
 
-# LCD Initialization
+# **LCD Initialization**
 LCD = I2C_LCD_driver.lcd()
-
-# Track the last message sent time for temperature and humidity
-last_temp_alert_time = None
-last_humidity_alert_time = None
 
 # **System Control Variables**
 system_enabled = True   # Controls the entire system
 temp_humi_enabled = True  # Controls temperature and humidity readings
 ldr_enabled = True      # Controls LDR monitoring
+
+# **Last Alert Time Trackers**
+last_temp_alert_time = None
+last_humidity_alert_time = None
+last_thingspeak_upload_time = None  # Prevent excessive updates
 
 # Function to check if 24 hours have passed for alerts
 def can_send_alert(last_alert_time):
@@ -88,6 +94,34 @@ def toggle_controls():
 # Start the keyboard listener in a separate thread
 threading.Thread(target=toggle_controls, daemon=True).start()
 
+# **Function to Upload Data to ThingSpeak**
+def upload_to_thingspeak(temp=None, humi=None):
+    global last_thingspeak_upload_time
+
+    # Ensure at least 15 seconds have passed before sending data again
+    if last_thingspeak_upload_time is None or (datetime.now() - last_thingspeak_upload_time).seconds >= 15:
+        payload = {
+            "api_key": THINGSPEAK_API_KEY
+        }
+
+        if temp is not None:
+            payload["field1"] = temp
+            response = requests.get(THINGSPEAK_UPDATE_URL, params=payload)
+            if response.status_code == 200:
+                print(f"[INFO] Temperature {temp}°C uploaded to ThingSpeak")
+            else:
+                print(f"[ERROR] Failed to upload temperature. Status: {response.status_code}")
+
+        if humi is not None:
+            payload["field2"] = humi
+            response = requests.get(THINGSPEAK_UPDATE_URL, params=payload)
+            if response.status_code == 200:
+                print(f"[INFO] Humidity {humi}% uploaded to ThingSpeak")
+            else:
+                print(f"[ERROR] Failed to upload humidity. Status: {response.status_code}")
+
+        last_thingspeak_upload_time = datetime.now()
+
 try:
     while True:
         # **Check if system is disabled**
@@ -103,6 +137,10 @@ try:
             humidity, temperature = Adafruit_DHT.read(DHT_SENSOR, DHT_PIN)
 
             if humidity is not None and temperature is not None:
+                # **Send to ThingSpeak separately**
+                upload_to_thingspeak(temp=temperature)
+                upload_to_thingspeak(humi=humidity)
+
                 # Temperature alert
                 if (temperature < 18 or temperature > 28) and can_send_alert(last_temp_alert_time):
                     message = f"Alert! The current temperature is {temperature}°C, outside of set threshold!"
