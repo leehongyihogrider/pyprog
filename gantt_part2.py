@@ -13,7 +13,7 @@ DHT_SENSOR = Adafruit_DHT.DHT11
 DHT_PIN = 21  # GPIO pin where the sensor is connected
 
 # **ThingSpeak Configuration**
-THINGSPEAK_API_KEY = "ATNCBN0ZUFSYGREX"
+
 THINGSPEAK_CHANNEL_ID = "2746200"
 THINGSPEAK_UPDATE_URL = "https://api.thingspeak.com/update"
 
@@ -101,7 +101,7 @@ def upload_to_thingspeak(temp=None, humi=None):
     # Ensure at least 15 seconds have passed before sending data again
     if last_thingspeak_upload_time is None or (datetime.now() - last_thingspeak_upload_time).seconds >= 15:
         payload = {
-            "api_key": THINGSPEAK_API_KEY
+            "api_key": "ATNCBN0ZUFSYGREX"
         }
 
         if temp is not None:
