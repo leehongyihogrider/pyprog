@@ -8,9 +8,10 @@
         async function toggleFeature(feature) {
             const response = await fetch("/toggle", {
                 method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: `toggle=${feature}`
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ toggle: feature })
             });
+
             const data = await response.json();
             document.getElementById("system-status").innerText = data.system_enabled ? "Enabled ✅" : "Disabled ❌";
             document.getElementById("temp-status").innerText = data.temp_humi_enabled ? "Enabled ✅" : "Disabled ❌";
@@ -29,6 +30,6 @@
     <button onclick="toggleFeature('ldr')">Toggle LDR</button>
 
     <br><br>
-    <a href="/chart">📊 View Live Chart</a>
+    <a href="/chart">📊 View ThingSpeak Chart</a>
 </body>
 </html>
