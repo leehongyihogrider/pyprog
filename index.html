@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plant Care System</title>
+</head>
+<body>
+    <h1>Plant Care System</h1>
+    <p>System Status: {{ "Enabled" if system_enabled else "Disabled" }}</p>
+    <p>Temperature & Humidity Monitoring: {{ "Enabled" if temp_humi_enabled else "Disabled" }}</p>
+    <p>LDR Monitoring: {{ "Enabled" if ldr_enabled else "Disabled" }}</p>
+</body>
+</html>
