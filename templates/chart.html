@@ -17,10 +17,10 @@
             const data = await response.json();
 
             return {
-                labels: data.map(d => d.time),
+                labels: data.map(d => d.timestamp),
                 temperature: data.map(d => d.temperature),
                 humidity: data.map(d => d.humidity),
-                ldr: data.map(d => d.ldr),
+                ldr: data.map(d => d.ldr_value),
             };
         }
 

@@ -4,31 +4,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Plant Care System</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>
+        async function toggleFeature(feature) {
+            const response = await fetch("/toggle", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: `toggle=${feature}`
+            });
+            const data = await response.json();
+            document.getElementById("system-status").innerText = data.system_enabled ? "Enabled ✅" : "Disabled ❌";
+            document.getElementById("temp-status").innerText = data.temp_humi_enabled ? "Enabled ✅" : "Disabled ❌";
+            document.getElementById("ldr-status").innerText = data.ldr_enabled ? "Enabled ✅" : "Disabled ❌";
+        }
+    </script>
 </head>
 <body>
     <h1>🌱 Plant Care System</h1>
-    <div class="status">
-        <p>System Status: <span id="system_status">{{ "Enabled" if system_enabled else "Disabled" }}</span></p>
-        <p>Temperature & Humidity: <span id="temp_status">{{ "Enabled" if temp_humi_enabled else "Disabled" }}</span></p>
-        <p>LDR Monitoring: <span id="ldr_status">{{ "Enabled" if ldr_enabled else "Disabled" }}</span></p>
-    </div>
+    <p>System Status: <span id="system-status">{{ "Enabled ✅" if system_enabled else "Disabled ❌" }}</span></p>
+    <p>Temperature & Humidity Monitoring: <span id="temp-status">{{ "Enabled ✅" if temp_humi_enabled else "Disabled ❌" }}</span></p>
+    <p>LDR Monitoring: <span id="ldr-status">{{ "Enabled ✅" if ldr_enabled else "Disabled ❌" }}</span></p>
+    
+    <button onclick="toggleFeature('system')">Toggle System</button>
+    <button onclick="toggleFeature('temp_humi')">Toggle Temp & Humi</button>
+    <button onclick="toggleFeature('ldr')">Toggle LDR</button>
 
-    <div class="controls">
-        <button onclick="toggle('system')">Toggle System</button>
-        <button onclick="toggle('temp_humi')">Toggle Temp & Humidity</button>
-        <button onclick="toggle('ldr')">Toggle LDR</button>
-        <a href="/chart">📊 View Live Data</a>
-    </div>
-
-    <script>
-        function toggle(setting) {
-            fetch("/toggle", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ setting: setting })
-            }).then(() => location.reload());
-        }
-    </script>
+    <br><br>
+    <a href="/chart">📊 View Live Chart</a>
 </body>
 </html>

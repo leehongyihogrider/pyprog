@@ -1,43 +1,35 @@
-from flask import Flask, render_template, jsonify, request, redirect, url_for
+from flask import Flask, render_template, request, jsonify
 import sqlite3
 import threading
 import Adafruit_DHT
 import spidev
-import I2C_LCD_driver
 import RPi.GPIO as GPIO
 from time import sleep
 from datetime import datetime
 
-# Flask app initialization
+# Initialize Flask
 app = Flask(__name__)
 
-# GPIO & SPI Setup
-GPIO.setmode(GPIO.BCM)
-GPIO.setwarnings(False)
-GPIO.setup(24, GPIO.OUT)
+# Sensor & GPIO Configuration
+DHT_SENSOR = Adafruit_DHT.DHT11
+DHT_PIN = 21
 
 spi = spidev.SpiDev()
 spi.open(0, 0)
 spi.max_speed_hz = 1350000
 
-# LCD Display Initialization
-LCD = I2C_LCD_driver.lcd()
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+GPIO.setup(24, GPIO.OUT)
 
-# Sensor configuration
-DHT_SENSOR = Adafruit_DHT.DHT11
-DHT_PIN = 21
-
-# System state variables
+# System Control Flags
 system_enabled = True
 temp_humi_enabled = True
 ldr_enabled = True
 
-# SQLite Database Setup
-DB_FILE = "sensor_data.db"
-
+# Database Initialization
 def init_db():
-    """ Initialize the SQLite database with required tables. """
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect("sensor_data.db")
     c = conn.cursor()
     c.execute("""
         CREATE TABLE IF NOT EXISTS readings (
@@ -51,63 +43,65 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Run DB initialization
 init_db()
 
-def readadc(adcnum):
-    """ Read analog value from LDR sensor through SPI """
-    if adcnum > 7 or adcnum < 0:
+# Function to Read from LDR Sensor
+def read_adc(channel):
+    if channel > 7 or channel < 0:
         return -1
-    r = spi.xfer2([1, (8 + adcnum) << 4, 0])
-    data = ((r[1] & 3) << 8) + r[2]
-    return data
+    r = spi.xfer2([1, (8 + channel) << 4, 0])
+    return ((r[1] & 3) << 8) + r[2]
 
+# Function to Read & Store Sensor Data
 def read_sensors():
-    """ Background function to read and store sensor data. """
     global system_enabled, temp_humi_enabled, ldr_enabled
-
     while True:
         if system_enabled:
             temp, humi = None, None
-
             if temp_humi_enabled:
                 humi, temp = Adafruit_DHT.read(DHT_SENSOR, DHT_PIN)
+            
+            ldr = read_adc(0) if ldr_enabled else None
 
-            ldr_value = readadc(0) if ldr_enabled else None
+            # Store in database
+            conn = sqlite3.connect("sensor_data.db")
+            c = conn.cursor()
+            c.execute("INSERT INTO readings (temperature, humidity, ldr_value) VALUES (?, ?, ?)",
+                      (temp, humi, ldr))
+            conn.commit()
+            conn.close()
 
-            if temp is not None and humi is not None:
-                print(f"Logged -> Temp: {temp}, Humi: {humi}, LDR: {ldr_value}")
+            print(f"Logged -> Temp: {temp}, Humi: {humi}, LDR: {ldr}")
 
-                # Store in SQLite
-                conn = sqlite3.connect(DB_FILE)
-                c = conn.cursor()
-                c.execute(
-                    "INSERT INTO readings (temperature, humidity, ldr_value) VALUES (?, ?, ?)",
-                    (temp, humi, ldr_value)
-                )
-                conn.commit()
-                conn.close()
+        sleep(2)  # Read every 2 seconds
 
-            sleep(2)  # Read every 2 seconds
-
-# Start background sensor reading thread
+# Start Sensor Reading in Background
 threading.Thread(target=read_sensors, daemon=True).start()
 
+# Flask Routes
 @app.route("/")
 def home():
-    """ Render homepage with system status. """
-    return render_template("index.html",
-                           system_enabled=system_enabled,
-                           temp_humi_enabled=temp_humi_enabled,
-                           ldr_enabled=ldr_enabled)
+    return render_template("index.html", system_enabled=system_enabled, temp_humi_enabled=temp_humi_enabled, ldr_enabled=ldr_enabled)
+
+@app.route("/chart")
+def chart():
+    return render_template("chart.html")
+
+@app.route("/data")
+def get_data():
+    conn = sqlite3.connect("sensor_data.db")
+    c = conn.cursor()
+    c.execute("SELECT timestamp, temperature, humidity, ldr_value FROM readings ORDER BY timestamp DESC LIMIT 20")
+    data = [{"timestamp": row[0], "temperature": row[1], "humidity": row[2], "ldr_value": row[3]} for row in c.fetchall()]
+    conn.close()
+    return jsonify(data[::-1])  # Reverse for correct order in chart
 
 @app.route("/toggle", methods=["POST"])
-def toggle_system():
-    """ Handle system state toggles from UI. """
+def toggle():
     global system_enabled, temp_humi_enabled, ldr_enabled
 
     toggle_type = request.form.get("toggle")
-
+    
     if toggle_type == "system":
         system_enabled = not system_enabled
     elif toggle_type == "temp_humi":
@@ -115,29 +109,11 @@ def toggle_system():
     elif toggle_type == "ldr":
         ldr_enabled = not ldr_enabled
 
-    return redirect(url_for("home"))
-
-@app.route("/chart")
-def chart():
-    """ Render the chart page """
-    return render_template("chart.html")
-
-@app.route("/data")
-def get_data():
-    """ Return last 20 readings as JSON for charting """
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT timestamp, temperature, humidity, ldr_value FROM readings ORDER BY timestamp DESC LIMIT 20")
-    data = c.fetchall()
-    conn.close()
-
-    # Format data as JSON
-    readings = [
-        {"timestamp": row[0], "temperature": row[1], "humidity": row[2], "ldr_value": row[3]}
-        for row in data
-    ]
-    
-    return jsonify(readings)
+    return jsonify({
+        "system_enabled": system_enabled,
+        "temp_humi_enabled": temp_humi_enabled,
+        "ldr_enabled": ldr_enabled
+    })
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
