@@ -136,8 +136,20 @@ try:
                 LCD.lcd_display_string("System DISABLED", 1)
                 LCD.lcd_display_string("Press 't' to enable", 2)
             else:
-                LCD.lcd_display_string(f"Temp: {'ON' if temp_humi_enabled else 'OFF'}", 1)
-                LCD.lcd_display_string(f"LDR: {'ON' if ldr_enabled else 'OFF'}", 2)
+                if temp_humi_enabled:
+                    humidity, temperature = Adafruit_DHT.read(DHT_SENSOR, DHT_PIN)
+                    if humidity is not None and temperature is not None:
+                        LCD.lcd_display_string(f"T:{temperature:.1f} H:{humidity:.1f}", 1)
+                    else:
+                        LCD.lcd_display_string("T:ERR H:ERR", 1)
+                else:
+                    LCD.lcd_display_string("T:OFF H:OFF", 1)
+                
+                if ldr_enabled:
+                    LDR_value = readadc(0)
+                    LCD.lcd_display_string(f"LDR:{LDR_value}", 2)
+                else:
+                    LCD.lcd_display_string("LDR:OFF", 2)
 
         # Skip monitoring if system is disabled
         if not system_enabled:
