@@ -1,0 +1,5 @@
+{
+    "system_enabled": true,
+    "temp_humi_enabled": true,
+    "ldr_enabled": true
+}
