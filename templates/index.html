@@ -4,41 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Plant Care System</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-
-    <h1>🌱 Plant Care System</h1>
+    <h1>🌿 Plant Care System</h1>
 
     <div class="status">
-        <p>🌍 System Status: <strong>{{ "Enabled" if system_enabled else "Disabled" }}</strong></p>
-        <p>🌡 Temperature & Humidity Monitoring: <strong>{{ "Enabled" if temp_humi_enabled else "Disabled" }}</strong></p>
-        <p>💡 LDR Monitoring: <strong>{{ "Enabled" if ldr_enabled else "Disabled" }}</strong></p>
+        <p><strong>System Status:</strong> {{ "Enabled" if state.system else "Disabled" }}</p>
+        <p><strong>Temperature & Humidity:</strong> {{ "Enabled" if state.temperature_humidity else "Disabled" }}</p>
+        <p><strong>LDR Monitoring:</strong> {{ "Enabled" if state.ldr else "Disabled" }}</p>
     </div>
 
-    <div class="buttons">
-        <form action="/toggle" method="post">
-            <button type="submit" name="toggle" value="system">Toggle System</button>
-            <button type="submit" name="toggle" value="temp_humi">Toggle Temp/Humidity</button>
-            <button type="submit" name="toggle" value="ldr">Toggle LDR</button>
-        </form>
-    </div>
+    <form action="/toggle" method="post">
+        <button type="submit" name="toggle" value="system">Toggle System</button>
+        <button type="submit" name="toggle" value="temperature_humidity">Toggle Temp & Humi</button>
+        <button type="submit" name="toggle" value="ldr">Toggle LDR</button>
+    </form>
 
-    <h2>📊 Live Sensor Data</h2>
-    <div class="chart-container">
-        <!-- ThingSpeak Embedded Graphs -->
-        <iframe width="450" height="260" style="border: 1px solid #ccc;" 
-            src="https://thingspeak.com/channels/2746200/charts/1?bgcolor=%23ffffff&color=%23ff0000&dynamic=true&results=60&title=Temperature">
-        </iframe>
-
-        <iframe width="450" height="260" style="border: 1px solid #ccc;" 
-            src="https://thingspeak.com/channels/2746200/charts/2?bgcolor=%23ffffff&color=%230000ff&dynamic=true&results=60&title=Humidity">
-        </iframe>
-
-        <iframe width="450" height="260" style="border: 1px solid #ccc;" 
-            src="https://thingspeak.com/channels/2746200/charts/3?bgcolor=%23ffffff&color=%2300ff00&dynamic=true&results=60&title=LDR">
-        </iframe>
-    </div>
+    <h2>📊 Live ThingSpeak Chart</h2>
+    <iframe width="450" height="260" style="border: 1px solid #ccc;" 
+        src="https://thingspeak.com/channels/2746200/charts/1?bgcolor=%23ffffff&color=%23d62020&dynamic=true">
+    </iframe>
 
 </body>
 </html>

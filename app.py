@@ -1,52 +1,46 @@
-from flask import Flask, render_template, request, redirect, jsonify
+from flask import Flask, render_template, request, redirect
 import json
 import os
 
 app = Flask(__name__)
 
-def load_system_state():
-    """Loads the system state from JSON file."""
-    default_state = {"system": True, "temp_humi": True, "ldr": True}
+# Ensure system_state.json exists with default values
+SYSTEM_STATE_FILE = "system_state.json"
+DEFAULT_STATE = {
+    "system": True,
+    "temperature_humidity": True,
+    "ldr": True
+}
 
-    if not os.path.exists("system_state.json"):
-        save_system_state(default_state)
-        return default_state
+# Function to read system state
+def read_system_state():
+    if not os.path.exists(SYSTEM_STATE_FILE):
+        with open(SYSTEM_STATE_FILE, "w") as f:
+            json.dump(DEFAULT_STATE, f)
+    with open(SYSTEM_STATE_FILE, "r") as f:
+        return json.load(f)
 
-    try:
-        with open("system_state.json", "r") as file:
-            return json.load(file)
-    except (json.JSONDecodeError, ValueError):
-        print("[ERROR] Corrupted system_state.json. Resetting...")
-        save_system_state(default_state)
-        return default_state
-
-
-def save_system_state(state):
-    """Writes system state to JSON file."""
-    with open("system_state.json", "w") as file:
-        json.dump(state, file)
-
+# Function to update system state
+def write_system_state(state):
+    with open(SYSTEM_STATE_FILE, "w") as f:
+        json.dump(state, f)
 
 @app.route("/")
 def home():
-    state = load_system_state()
-    return render_template("index.html", state=state)
-
+    system_state = read_system_state()
+    return render_template("index.html", state=system_state)
 
 @app.route("/toggle", methods=["POST"])
 def toggle():
-    """Handles toggling of system settings."""
-    state = load_system_state()
-
     toggle_type = request.form.get("toggle")
-
-    if toggle_type in state:
-        state[toggle_type] = not state[toggle_type]
-        save_system_state(state)
-        return redirect("/")
+    system_state = read_system_state()
     
-    return "Invalid toggle request", 400
-
+    if toggle_type in system_state:
+        system_state[toggle_type] = not system_state[toggle_type]  # Toggle on/off
+        write_system_state(system_state)
+        print(f"[INFO] {toggle_type} set to {system_state[toggle_type]}")
+    
+    return redirect("/")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
