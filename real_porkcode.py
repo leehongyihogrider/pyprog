@@ -4,125 +4,142 @@ import spidev
 import I2C_LCD_driver
 import RPi.GPIO as GPIO
 import json
-import time
+import os
+from time import sleep
 from datetime import datetime, timedelta
 
-# Global Variables
+# Global timing variables
 last_temp_alert_time = None
 last_humidity_alert_time = None
 last_thingspeak_upload_time = None
 last_valid_temperature = None
 last_valid_humidity = None
-led_on = False  # Track LED state
+led_on = False  
 
-# Sensor Configurations
+# Hardware configuration
 DHT_SENSOR = Adafruit_DHT.DHT11
-DHT_PIN = 21
+DHT_PIN = 21  
 
-# Cloud Configurations
-THINGSPEAK_API_KEY = "ATNCBN0ZUFSYGREX"
-THINGSPEAK_URL = "https://api.thingspeak.com/update"
-TELEGRAM_TOKEN = "7094057858:AAGU0CMWAcTnuMBJoUmBlg8HxUc8c1Mx3jw"
-CHAT_ID = "-1002405515611"
-
-# SPI (LDR Sensor)
+# Initialize SPI communication for LDR sensor
 spi = spidev.SpiDev()
-spi.open(0, 0)
+spi.open(0, 0)  
 spi.max_speed_hz = 1350000
 
-# GPIO Setup
+# Set up GPIO for LED control
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
-GPIO.setup(24, GPIO.OUT)  # LED
+GPIO.setup(24, GPIO.OUT)  
 
-# LCD Setup
+# Initialize LCD display
 LCD = I2C_LCD_driver.lcd()
 
-# Read System State from JSON
+# ThingSpeak API (if needed)
+THINGSPEAK_UPDATE_URL = "https://api.thingspeak.com/update"
+TOKEN = "7094057858:AAGU0CMWAcTnuMBJoUmBlg8HxUc8c1Mx3jw"
+chat_id = "-1002405515611"  
+
+
 def load_system_state():
+    """Loads the system state from JSON or creates a default one if missing."""
+    default_state = {"system": True, "temp_humi": True, "ldr": True}
+
+    if not os.path.exists("system_state.json"):
+        save_system_state(default_state)
+        return default_state
+
     try:
         with open("system_state.json", "r") as file:
-            return json.load(file)
-    except FileNotFoundError:
-        return {"system": True, "temp_humi": True, "ldr": True}
+            state = json.load(file)
+            if not all(k in state for k in ["system", "temp_humi", "ldr"]):
+                raise ValueError("Missing keys in system_state.json")
+            return state
+    except (json.JSONDecodeError, ValueError):
+        print("[ERROR] system_state.json corrupted! Resetting...")
+        save_system_state(default_state)
+        return default_state
+
 
 def save_system_state(state):
+    """Writes system state to JSON file."""
     with open("system_state.json", "w") as file:
         json.dump(state, file)
 
-# Read ADC Data (LDR Sensor)
+
+def update_lcd(state):
+    """Update LCD display based on system state."""
+    LCD.lcd_clear()
+
+    if not state["system"]:
+        LCD.lcd_display_string("System DISABLED", 1)
+        LCD.lcd_display_string("Press toggle to enable", 2)
+    else:
+        if state["temp_humi"]:
+            if last_valid_temperature is not None and last_valid_humidity is not None:
+                LCD.lcd_display_string(f"T:{last_valid_temperature:.1f}C H:{last_valid_humidity:.1f}%", 1)
+            else:
+                LCD.lcd_display_string("T:ERR H:ERR", 1)
+        else:
+            LCD.lcd_display_string("T:OFF H:OFF", 1)
+
+        if state["ldr"]:
+            LDR_value = readadc(0)
+            LCD.lcd_display_string(f"LDR:{LDR_value}", 2)
+        else:
+            LCD.lcd_display_string("LDR:OFF", 2)
+
+
 def readadc(adcnum):
+    """Read analog value from LDR sensor through SPI"""
     if adcnum > 7 or adcnum < 0:
         return -1
     r = spi.xfer2([1, (8 + adcnum) << 4, 0])
-    return ((r[1] & 3) << 8) + r[2]
+    data = ((r[1] & 3) << 8) + r[2]
+    return data
 
-# Upload Data to ThingSpeak
-def upload_to_thingspeak(temp=None, humi=None):
-    global last_thingspeak_upload_time
-    if last_thingspeak_upload_time is None or (datetime.now() - last_thingspeak_upload_time).seconds >= 15:
-        payload = {"api_key": THINGSPEAK_API_KEY}
-        if temp is not None:
-            payload["field1"] = temp
-        if humi is not None:
-            payload["field2"] = humi
-        requests.get(THINGSPEAK_URL, params=payload)
-        last_thingspeak_upload_time = datetime.now()
 
-# Handle Temperature & Humidity Monitoring
-def handle_temperature_humidity():
-    global last_valid_temperature, last_valid_humidity, last_temp_alert_time, last_humidity_alert_time
+def handle_temperature_humidity(state):
+    """Monitor temperature/humidity and send alerts if thresholds exceeded"""
+    global last_temp_alert_time, last_humidity_alert_time, last_valid_temperature, last_valid_humidity
+
+    if not state["temp_humi"]:
+        return  
 
     humidity, temperature = Adafruit_DHT.read(DHT_SENSOR, DHT_PIN)
+
     if humidity is not None and temperature is not None:
-        last_valid_temperature, last_valid_humidity = temperature, humidity
-        upload_to_thingspeak(temp=temperature, humi=humidity)
+        last_valid_temperature = temperature
+        last_valid_humidity = humidity
+        print(f"[DEBUG] Temp: {temperature}°C, Humidity: {humidity}%")
 
-        if (temperature < 18 or temperature > 28) and last_temp_alert_time is None:
-            requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-                         params={"chat_id": CHAT_ID, "text": f"⚠ Temp Alert: {temperature}°C"})
-            last_temp_alert_time = datetime.now()
-
-        if humidity > 80 and last_humidity_alert_time is None:
-            requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-                         params={"chat_id": CHAT_ID, "text": f"⚠ Humidity Alert: {humidity}%"})
-            last_humidity_alert_time = datetime.now()
     else:
-        print("[WARNING] Sensor error! Check wiring.")
+        print("Failed to retrieve data from the sensor. Check wiring!")
 
-# Update LCD Display
-def update_lcd(state):
-    LCD.lcd_clear()
-    if not state["system"]:
-        LCD.lcd_display_string("System DISABLED", 1)
-        LCD.lcd_display_string("Press 'Enable'", 2)
-        return
 
-    temp_display = f"T:{last_valid_temperature or 'ERR'}C H:{last_valid_humidity or 'ERR'}%"
-    ldr_display = f"LDR: {'ON' if state['ldr'] else 'OFF'}"
-    LCD.lcd_display_string(temp_display, 1)
-    LCD.lcd_display_string(ldr_display, 2)
-
-# Main Loop
 try:
     while True:
-        system_state = load_system_state()
-        update_lcd(system_state)
+        state = load_system_state()
+        update_lcd(state)
 
-        if system_state["system"]:
-            if system_state["temp_humi"]:
-                handle_temperature_humidity()
+        if not state["system"]:
+            print("\n[INFO] System disabled. Waiting for activation...")
+            sleep(2)
+            continue
 
-            if system_state["ldr"]:
-                LDR_value = readadc(0)
-                GPIO.output(24, 1 if LDR_value < 500 else 0)
+        handle_temperature_humidity(state)
 
-        time.sleep(2)
+        if state["ldr"]:
+            LDR_value = readadc(0)
+            print(f"LDR = {LDR_value}")
+
+        sleep(2)
 
 except KeyboardInterrupt:
-    print("\n[INFO] Exiting program...")
+    print("\n[INFO] Program stopped by user.")
 
 finally:
+    print("\n[INFO] Cleaning up resources before exit...")
+    GPIO.output(24, 0)
     GPIO.cleanup()
     spi.close()
     LCD.lcd_clear()
+    print("[INFO] System has safely shut down.")
