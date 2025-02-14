@@ -3,33 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plant Care System</title>
-    <script>
-        async function toggleFeature(feature) {
-            const response = await fetch("/toggle", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ toggle: feature })
-            });
-
-            const data = await response.json();
-            document.getElementById("system-status").innerText = data.system_enabled ? "Enabled ✅" : "Disabled ❌";
-            document.getElementById("temp-status").innerText = data.temp_humi_enabled ? "Enabled ✅" : "Disabled ❌";
-            document.getElementById("ldr-status").innerText = data.ldr_enabled ? "Enabled ✅" : "Disabled ❌";
-        }
-    </script>
+    <title>Plant Monitoring System</title>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <h1>🌱 Plant Care System</h1>
-    <p>System Status: <span id="system-status">{{ "Enabled ✅" if system_enabled else "Disabled ❌" }}</span></p>
-    <p>Temperature & Humidity Monitoring: <span id="temp-status">{{ "Enabled ✅" if temp_humi_enabled else "Disabled ❌" }}</span></p>
-    <p>LDR Monitoring: <span id="ldr-status">{{ "Enabled ✅" if ldr_enabled else "Disabled ❌" }}</span></p>
-    
-    <button onclick="toggleFeature('system')">Toggle System</button>
-    <button onclick="toggleFeature('temp_humi')">Toggle Temp & Humi</button>
-    <button onclick="toggleFeature('ldr')">Toggle LDR</button>
+    <h1>🌱 Plant Monitoring System</h1>
+    <p><strong>System:</strong> {{ 'ENABLED' if system.system else 'DISABLED' }}</p>
+    <p><strong>Temperature & Humidity:</strong> {{ 'ON' if system.temp_humi else 'OFF' }}</p>
+    <p><strong>LDR Monitoring:</strong> {{ 'ON' if system.ldr else 'OFF' }}</p>
 
-    <br><br>
-    <a href="/chart">📊 View ThingSpeak Chart</a>
+    <form method="POST" action="/toggle">
+        <button name="toggle" value="system">Toggle System</button>
+        <button name="toggle" value="temp_humi">Toggle Temp/Humidity</button>
+        <button name="toggle" value="ldr">Toggle LDR</button>
+    </form>
 </body>
 </html>

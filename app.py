@@ -1,29 +1,24 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, request, redirect, jsonify
 import json
-import os
 
 app = Flask(__name__)
 
-# Path to the system state JSON file
-STATE_FILE = "system_state.json"
-
-# Function to load system state
+# Load System State
 def load_system_state():
-    if not os.path.exists(STATE_FILE):
-        return {"system_enabled": True, "temp_humi_enabled": True, "ldr_enabled": True}
-    
-    with open(STATE_FILE, "r") as f:
-        return json.load(f)
+    try:
+        with open("system_state.json", "r") as file:
+            return json.load(file)
+    except FileNotFoundError:
+        return {"system": True, "temp_humi": True, "ldr": True}
 
-# Function to save system state
 def save_system_state(state):
-    with open(STATE_FILE, "w") as f:
-        json.dump(state, f)
+    with open("system_state.json", "w") as file:
+        json.dump(state, file)
 
 @app.route("/")
 def home():
     system_state = load_system_state()
-    return render_template("index.html", **system_state)
+    return render_template("index.html", system=system_state)
 
 @app.route("/toggle", methods=["POST"])
 def toggle():
@@ -31,14 +26,14 @@ def toggle():
     toggle_type = request.form["toggle"]
 
     if toggle_type == "system":
-        system_state["system_enabled"] = not system_state["system_enabled"]
+        system_state["system"] = not system_state["system"]
     elif toggle_type == "temp_humi":
-        system_state["temp_humi_enabled"] = not system_state["temp_humi_enabled"]
+        system_state["temp_humi"] = not system_state["temp_humi"]
     elif toggle_type == "ldr":
-        system_state["ldr_enabled"] = not system_state["ldr_enabled"]
+        system_state["ldr"] = not system_state["ldr"]
 
     save_system_state(system_state)
-    return jsonify(system_state)
+    return redirect("/")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
