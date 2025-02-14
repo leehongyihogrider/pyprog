@@ -1,28 +1,71 @@
+/* General Styles */
 body {
-    font-family: Arial, sans-serif;
+    font-family: 'Arial', sans-serif;
+    background-color: #f0f7f4; /* Soft green background */
+    color: #2c5e1a; /* Dark green text */
     text-align: center;
-    background-color: #f4f4f4;
+    margin: 0;
+    padding: 0;
 }
 
+/* Header */
 h1 {
-    color: #333;
+    background-color: #3aaf6c; /* Deep green header */
+    color: white;
+    padding: 15px;
+    margin: 0;
+    font-size: 28px;
+    border-bottom: 5px solid #2c5e1a;
 }
 
+/* System Status Box */
 .status {
+    background: #ffffff;
+    padding: 20px;
+    border-radius: 10px;
+    margin: 20px auto;
+    width: 60%;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.status p {
     font-size: 18px;
-    margin: 20px;
+    margin: 10px 0;
 }
 
-.controls button {
-    padding: 10px;
-    margin: 10px;
+/* Buttons */
+.buttons {
+    margin: 20px 0;
+}
+
+button {
+    background-color: #3aaf6c;
+    color: white;
+    border: none;
+    padding: 12px 18px;
     font-size: 16px;
+    cursor: pointer;
+    border-radius: 5px;
+    margin: 5px;
+    transition: 0.3s;
 }
 
-a {
-    display: block;
-    margin-top: 20px;
-    text-decoration: none;
-    color: blue;
-    font-weight: bold;
+button:hover {
+    background-color: #2c5e1a;
+}
+
+/* Charts Container */
+.chart-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 15px;
+    margin: 20px auto;
+    width: 90%;
+}
+
+iframe {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    background: #ffffff;
 }

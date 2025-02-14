@@ -71,7 +71,7 @@ def update_lcd(state):
 
     if not state["system"]:
         LCD.lcd_display_string("System DISABLED", 1)
-        LCD.lcd_display_string("Press toggle to enable", 2)
+        LCD.lcd_display_string("Re-enable via toggle", 2)
     else:
         if state["temp_humi"]:
             if last_valid_temperature is not None and last_valid_humidity is not None:
