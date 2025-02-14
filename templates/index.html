@@ -4,11 +4,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Plant Care System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <h1>Plant Care System</h1>
-    <p>System Status: {{ "Enabled" if system_enabled else "Disabled" }}</p>
-    <p>Temperature & Humidity Monitoring: {{ "Enabled" if temp_humi_enabled else "Disabled" }}</p>
-    <p>LDR Monitoring: {{ "Enabled" if ldr_enabled else "Disabled" }}</p>
+    <h1>🌱 Plant Care System</h1>
+    <div class="status">
+        <p>System Status: <span id="system_status">{{ "Enabled" if system_enabled else "Disabled" }}</span></p>
+        <p>Temperature & Humidity: <span id="temp_status">{{ "Enabled" if temp_humi_enabled else "Disabled" }}</span></p>
+        <p>LDR Monitoring: <span id="ldr_status">{{ "Enabled" if ldr_enabled else "Disabled" }}</span></p>
+    </div>
+
+    <div class="controls">
+        <button onclick="toggle('system')">Toggle System</button>
+        <button onclick="toggle('temp_humi')">Toggle Temp & Humidity</button>
+        <button onclick="toggle('ldr')">Toggle LDR</button>
+        <a href="/chart">📊 View Live Data</a>
+    </div>
+
+    <script>
+        function toggle(setting) {
+            fetch("/toggle", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ setting: setting })
+            }).then(() => location.reload());
+        }
+    </script>
 </body>
 </html>
