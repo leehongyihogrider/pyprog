@@ -33,11 +33,11 @@ GPIO.setup(24, GPIO.OUT)
 # Initialize LCD display
 LCD = I2C_LCD_driver.lcd()
 
-# ThingSpeak API (if needed)
+# ThingSpeak API
+THINGSPEAK_API_KEY = "ATNCBN0ZUFSYGREX"  # Change this to your API key
 THINGSPEAK_UPDATE_URL = "https://api.thingspeak.com/update"
 TOKEN = "7094057858:AAGU0CMWAcTnuMBJoUmBlg8HxUc8c1Mx3jw"
 chat_id = "-1002405515611"  
-
 
 def load_system_state():
     """Loads the system state from JSON or creates a default one if missing."""
@@ -97,6 +97,26 @@ def readadc(adcnum):
     return data
 
 
+def upload_to_thingspeak(temp, humi, ldr):
+    """Uploads data to ThingSpeak every 15 seconds."""
+    global last_thingspeak_upload_time
+
+    if last_thingspeak_upload_time is None or (datetime.now() - last_thingspeak_upload_time).seconds >= 15:
+        payload = {
+            "api_key": THINGSPEAK_API_KEY,
+            "field1": temp,
+            "field2": humi,
+            "field3": ldr
+        }
+
+        response = requests.get(THINGSPEAK_UPDATE_URL, params=payload)
+        if response.status_code == 200:
+            print(f"[INFO] Data uploaded to ThingSpeak successfully.")
+            last_thingspeak_upload_time = datetime.now()
+        else:
+            print(f"[ERROR] ThingSpeak upload failed: {response.status_code}")
+
+
 def handle_temperature_humidity(state):
     """Monitor temperature/humidity and send alerts if thresholds exceeded"""
     global last_temp_alert_time, last_humidity_alert_time, last_valid_temperature, last_valid_humidity
@@ -130,6 +150,10 @@ try:
         if state["ldr"]:
             LDR_value = readadc(0)
             print(f"LDR = {LDR_value}")
+
+        # Upload data to ThingSpeak
+        if last_valid_temperature is not None and last_valid_humidity is not None:
+            upload_to_thingspeak(last_valid_temperature, last_valid_humidity, LDR_value)
 
         sleep(2)
 
